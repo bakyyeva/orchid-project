@@ -4,8 +4,10 @@ namespace App\Orchid\Screens;
 
 use Illuminate\Http\Request;
 use App\Models\Task;
+use Orchid\Attachment\Models\Attachment;
 use Orchid\Screen\Actions\Button;
 use Orchid\Screen\Actions\ModalToggle;
+use Orchid\Screen\Fields\Attach;
 use Orchid\Screen\Fields\CheckBox;
 use Orchid\Screen\Fields\Cropper;
 use Orchid\Screen\Fields\Input;
@@ -123,7 +125,7 @@ class TaskScreen extends Screen
                 TD::make('id'),
                 TD::make('name'),
                 TD::make('description'),
-                TD::make('image'),
+               
 
                 TD::make('Actions')
                 ->alignRight()

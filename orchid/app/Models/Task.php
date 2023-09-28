@@ -12,4 +12,5 @@ class Task extends Model
     use HasFactory, AsSource, Attachable;
 
     protected $fillable = ['name', 'description', 'image', 'category'];
+
 }
