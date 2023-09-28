@@ -12,6 +12,7 @@ use Orchid\Screen\Fields\Input;
 use Orchid\Screen\Fields\Picture;
 use Orchid\Screen\Fields\Select;
 use Orchid\Screen\Fields\TextArea;
+use Orchid\Screen\Fields\Upload;
 use Orchid\Screen\Screen;
 use Orchid\Screen\TD;
 use Orchid\Support\Facades\Layout;
@@ -98,13 +99,19 @@ class TaskScreen extends Screen
                 //->help('Resim girin')
                 //->required(),
 
-                Picture::make('task.picture')
-                ->acceptedFiles('.png'),
+                //Picture::make('task.picture')
+                //->acceptedFiles('.png'),
 
-                Cropper::make('task.picture')
-                ->title('Large web banner image, generally in the front and center')
-                ->width(1000)
-                ->height(500),
+                //Cropper::make('task.picture')
+                //->title('Large web banner image, generally in the front and center')
+                //->width(1000)
+                //->height(500),
+
+                Upload::make('task.image')
+                    ->title('Task resim')
+                    ->maxFileSize(2),
+                    //->groups('documents')
+                    //->acceptedFiles('image/*,application/pdf,.psd'),
                 
             ]))
             ->title('Task Oluştur')
@@ -116,6 +123,7 @@ class TaskScreen extends Screen
                 TD::make('id'),
                 TD::make('name'),
                 TD::make('description'),
+                TD::make('image'),
 
                 TD::make('Actions')
                 ->alignRight()
@@ -138,23 +146,22 @@ class TaskScreen extends Screen
             'task.description' => 'required|min:8',
         ]);
 
+        $data = $request->get('task');
+
+        $image = $data['image']??[];
+
+        unset($data['image']);
+
         $isActive = $request->has('task.active') ? 1 : 0;
 
-        
         $task = new Task();
-        $task->fill($request->get('task'));
-        dd($task);
-        //$task->name = $request->input('task.name');
-        //$task->description = $request->input('task.description');
+        $task->fill($data);
         $task->active = $isActive;
-        //$task->category = $request->input('task.category');
-       // $task->image = $request->file('task.image')->store('public/images');
-        $task->image = $isActive;
         $task->save();
 
-        //$data = $request->except('_token');
-   // dd($data);
-     //   Task::create($data);
+        $task->attachment()->syncWithoutDetaching(
+          $request->input('task.image')
+        );
 
     }
 
