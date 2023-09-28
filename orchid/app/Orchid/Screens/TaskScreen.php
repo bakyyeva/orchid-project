@@ -29,8 +29,13 @@ class TaskScreen extends Screen
      */
     public function query(): iterable
     {
+        $tasks = Task::all();
+        $tasks->each(function ($task) {
+            $task->load('attachment');
+        });
+
         return [
-            'tasks' => Task::all(),
+            'tasks' => $tasks,
         ];
     }
 
@@ -58,10 +63,10 @@ class TaskScreen extends Screen
     {
         return [
             ModalToggle::make('Task ekle')
-            ->modal('taskModal')
-            ->method('create')
-            ->icon('plus')
-            ->class('btn btn-success')
+                ->modal('taskModal')
+                ->method('create')
+                ->icon('plus')
+                ->class('btn btn-success')
         ];
     }
 
@@ -75,67 +80,54 @@ class TaskScreen extends Screen
         return [
             Layout::modal('taskModal', Layout::rows([
                 Input::make('task.name')
-                ->title('Name')
-                ->placeholder('Task girin'),
+                    ->title('Name')
+                    ->placeholder('Task girin'),
 
                 TextArea::make('task.description')
-                ->title('Description')
-                ->placeholder('Task açıklama girin'),
+                    ->title('Description')
+                    ->placeholder('Task açıklama girin'),
 
                 CheckBox::make('task.active')
-                ->value(1)
-                ->title('Status')
-                ->help('Task active olsunmu?'),
+                    ->value(1)
+                    ->title('Status')
+                    ->help('Task active olsunmu?'),
 
                 Select::make('task.category')
-                ->options([
-                    'okul' => 'Okul',
-                    'iş' => 'İş',
-                    'kişisel' => 'Kişisel',
-                ])
-                ->title('Kategory seçin')
-                ->empty('No select'),
-
-                //Input::make('task.image')
-                //->type('file')
-                //->help('Resim girin')
-                //->required(),
-
-                //Picture::make('task.picture')
-                //->acceptedFiles('.png'),
-
-                //Cropper::make('task.picture')
-                //->title('Large web banner image, generally in the front and center')
-                //->width(1000)
-                //->height(500),
+                    ->options([
+                        'okul' => 'Okul',
+                        'iş' => 'İş',
+                        'kişisel' => 'Kişisel',
+                    ])
+                    ->title('Kategory seçin')
+                    ->empty('No select'),
 
                 Upload::make('task.image')
                     ->title('Task resim')
                     ->maxFileSize(2),
-                    //->groups('documents')
-                    //->acceptedFiles('image/*,application/pdf,.psd'),
-                
-            ]))
-            ->title('Task Oluştur')
-            ->applyButton('Task Ekle'),
-            
 
+            ]))->title('Task Oluştur')->applyButton('Task Ekle'),
 
             Layout::table('tasks', [
                 TD::make('id'),
                 TD::make('name'),
                 TD::make('description'),
-               
+
+                TD::make('image')->render(function (Task $task) {
+                    return $task->attachment->map(function ($attachment) {
+                        return "<img src='{$attachment->url}' width='100px' />";
+                    })->implode(' ');
+                }),
+
 
                 TD::make('Actions')
-                ->alignRight()
-                ->render(function(Task $task) {
-                    return Button::make('Task sil')
-                    ->class('btn btn-danger')
-                    ->icon('trash')
-                    ->confirm('After deleting, the task will be gone forever.')
-                    ->method('delete', ['task' => $task->id]);
-                }),
+                    ->alignRight()
+                    ->render(function (Task $task) {
+                        return Button::make('Task sil')
+                            ->class('btn btn-danger')
+                            ->icon('trash')
+                            ->confirm('After deleting, the task will be gone forever.')
+                            ->method('delete', ['task' => $task->id]);
+                    }),
 
             ])
         ];
@@ -148,23 +140,16 @@ class TaskScreen extends Screen
             'task.description' => 'required|min:8',
         ]);
 
-        $data = $request->get('task');
-
-        $image = $data['image']??[];
-
-        unset($data['image']);
-
         $isActive = $request->has('task.active') ? 1 : 0;
-
         $task = new Task();
-        $task->fill($data);
+        $task->fill(collect($request->get('task'))->except(['image', 'active'])->toArray())
+            ->fill(['image' => $request->has('task.image') ? $request->get('task')['image'][0] : null]);
         $task->active = $isActive;
         $task->save();
 
         $task->attachment()->syncWithoutDetaching(
-          $request->input('task.image')
+            $request->input('task.image', [])
         );
-
     }
 
     public function delete(Task $task)
@@ -172,4 +157,3 @@ class TaskScreen extends Screen
         $task->delete();
     }
 }
- 
