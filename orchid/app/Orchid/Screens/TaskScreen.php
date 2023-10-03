@@ -4,20 +4,25 @@ namespace App\Orchid\Screens;
 
 use Illuminate\Http\Request;
 use App\Models\Task;
+use App\Orchid\Layouts\SumListener;
+use App\Orchid\Layouts\TaskCreateOrUpdateLayout;
+use App\Orchid\Layouts\TaskListLayout;
+use Orchid\Attachment\File;
 use Orchid\Attachment\Models\Attachment;
 use Orchid\Screen\Actions\Button;
+use Orchid\Screen\Actions\Link;
 use Orchid\Screen\Actions\ModalToggle;
 use Orchid\Screen\Fields\Attach;
 use Orchid\Screen\Fields\CheckBox;
 use Orchid\Screen\Fields\Cropper;
 use Orchid\Screen\Fields\Input;
-use Orchid\Screen\Fields\Picture;
 use Orchid\Screen\Fields\Select;
 use Orchid\Screen\Fields\TextArea;
 use Orchid\Screen\Fields\Upload;
 use Orchid\Screen\Screen;
 use Orchid\Screen\TD;
 use Orchid\Support\Facades\Layout;
+
 
 
 class TaskScreen extends Screen
@@ -29,7 +34,7 @@ class TaskScreen extends Screen
      */
     public function query(): iterable
     {
-        $tasks = Task::all();
+        $tasks = Task::filters()->defaultSort('id')->paginate(5);
         $tasks->each(function ($task) {
             $task->load('attachment');
         });
@@ -55,6 +60,18 @@ class TaskScreen extends Screen
     }
 
     /**
+     * Permission
+     *
+     * @return iterable|null
+     */
+    public function permission(): ?iterable
+    {
+        return [
+            'platform.tasks'
+        ];
+    }
+
+    /**
      * The screen's action buttons.
      *
      * @return \Orchid\Screen\Action[]
@@ -66,7 +83,13 @@ class TaskScreen extends Screen
                 ->modal('taskModal')
                 ->method('create')
                 ->icon('plus')
-                ->class('btn btn-success')
+                ->class('btn btn-success'),
+
+            //ModalToggle::make('Task Güncelle')
+            //->modal('editTask')
+            //->method('update')
+            //->icon('pencil')
+            //->class('btn btn-primary'),
         ];
     }
 
@@ -78,58 +101,25 @@ class TaskScreen extends Screen
     public function layout(): iterable
     {
         return [
-            Layout::modal('taskModal', Layout::rows([
-                Input::make('task.name')
-                    ->title('Name')
-                    ->placeholder('Task girin'),
+            Layout::modal('taskModal', TaskCreateOrUpdateLayout::class)
+                ->title('Task Oluştur')
+                ->applyButton('TaskEkle')->async('asyncGetData'),
 
-                TextArea::make('task.description')
-                    ->title('Description')
-                    ->placeholder('Task açıklama girin'),
+            TaskListLayout::class,
 
-                CheckBox::make('task.active')
-                    ->value(1)
-                    ->title('Status')
-                    ->help('Task active olsunmu?'),
+        ];
+    }
 
-                Select::make('task.category')
-                    ->options([
-                        'okul' => 'Okul',
-                        'iş' => 'İş',
-                        'kişisel' => 'Kişisel',
-                    ])
-                    ->title('Kategory seçin')
-                    ->empty('No select'),
-
-                Upload::make('task.image')
-                    ->title('Task resim')
-                    ->maxFileSize(2),
-
-            ]))->title('Task Oluştur')->applyButton('Task Ekle'),
-
-            Layout::table('tasks', [
-                TD::make('id'),
-                TD::make('name'),
-                TD::make('description'),
-
-                TD::make('image')->render(function (Task $task) {
-                    return $task->attachment->map(function ($attachment) {
-                        return "<img src='{$attachment->url}' width='100px' />";
-                    })->implode(' ');
-                }),
-
-
-                TD::make('Actions')
-                    ->alignRight()
-                    ->render(function (Task $task) {
-                        return Button::make('Task sil')
-                            ->class('btn btn-danger')
-                            ->icon('trash')
-                            ->confirm('After deleting, the task will be gone forever.')
-                            ->method('delete', ['task' => $task->id]);
-                    }),
-
-            ])
+    public function asyncGetData($taskId = null): array
+    {
+        if ($taskId) {
+            $task = Task::find($taskId);
+            $task->image = json_decode($task->image, true);
+        } else {
+            $task = new Task();
+        }
+        return [
+            'task' => $task,
         ];
     }
 
@@ -143,7 +133,8 @@ class TaskScreen extends Screen
         $isActive = $request->has('task.active') ? 1 : 0;
         $task = new Task();
         $task->fill(collect($request->get('task'))->except(['image', 'active'])->toArray())
-            ->fill(['image' => $request->has('task.image') ? $request->get('task')['image'][0] : null]);
+            ->fill(['image' => json_encode($request->get('task')['image'])]);
+        // ->fill(['image' => $request->has('task.image') ? $request->get('task')['image'][0] : null]);
         $task->active = $isActive;
         $task->save();
 
@@ -155,5 +146,28 @@ class TaskScreen extends Screen
     public function delete(Task $task)
     {
         $task->delete();
+    }
+
+    public function update(Request $request)
+    {
+        $task = Task::find($request->taskId);
+        $isActive = $request->has('task.active') ? 1 : 0;
+        // if ($task->attachment()->count() > 0) {
+        //     $task->attachment->each->delete();
+        // }
+        $images = $request->get('task')['image'];
+        foreach ($images as $image) {
+            $imageIds[] = $image;
+        }
+        $task->fill(collect($request->get('task'))->except(['image', 'active'])->toArray())
+            ->fill(['image' => $request->has('task.image') ? $imageIds : null]);
+        $task->active = $isActive;
+        $task->save();
+
+        $task->attachment()->syncWithoutDetaching(
+            $request->input('task.image', [])
+        );
+
+        return redirect()->route('task');
     }
 }
